@@ -27,7 +27,6 @@ with open(args.studentPreferencesFilename, 'r') as studentFile:
         values = list(line.values())
         values.pop(0) # remove student id
         values = list(filter(None, values)) # remove empty preferences
-        values = list(OrderedDict.fromkeys(values)) # remove duplicates and keep order
         if len(values) >= 3: # if student does not enter at least three preferences, he loses right to choose
             values.append('unassigned') # last preference is "unassigned"
             studentPreferences[list(line.values())[0]] = values
@@ -49,7 +48,6 @@ with open(args.departmentCapacityFilename, 'r') as capacityFile:
 
 # initialize with largest priority as 99
 bestReachedPriorities = OrderedDict()
-bestReachedPriorities[98] = 1
 bestReachedPriorities[99] = 1
 bestDepartmentStudents = []
 
@@ -66,15 +64,15 @@ for i in range(1, 50000):
         """ try to put student into corresponding department """
         department = preferences[priority]
 
-        departmentStudents[department].append(student)
+        departmentStudents[department].append([student, priority])
 
         # if department is full, we remove student with lowest priority
         if len(departmentStudents[department]) > departmentCapacities[department]:
-            studentsSortedByRandomNumbers = sorted(departmentStudents[department], key=lambda x: randomNumbers[x])
+            studentsSortedByRandomNumbers = sorted(departmentStudents[department], key=lambda x: randomNumbers[x[0]])
             studentToMove = studentsSortedByRandomNumbers[0]
             departmentStudents[department].remove(studentToMove)
-            studentsCurrentPreference = studentPreferences[studentToMove].index(department)
-            tryPut(studentToMove, studentPreferences[studentToMove], studentsCurrentPreference + 1)
+            studentsCurrentPreference = studentToMove[1]
+            tryPut(studentToMove[0], studentPreferences[studentToMove[0]], studentsCurrentPreference + 1)
 
     for student, preferences in studentPreferences.items():
         tryPut(student, preferences, 0)
@@ -82,12 +80,12 @@ for i in range(1, 50000):
     reachedPriorities = OrderedDict()
 
     for department, students in departmentStudents.items():
-        for student in students:
+        for studentWithPriority in students:
             # what preference is this department for student?
             if department == 'unassigned':
                 preference = 99
             else:
-                preference = studentPreferences[student].index(department) + 1
+                preference = studentWithPriority[1]
             reachedPriorities[preference] = reachedPriorities.get(preference, 0) + 1
 
     optimalWorstGroup = max(bestReachedPriorities.keys())
@@ -104,27 +102,27 @@ for priority, numbers in sorted(bestReachedPriorities.items()):
     if priority == 99:
         priority = 'U'
     sum += numbers
-    print("Prio " + str(priority) + ":\t" + str(numbers) + "\tCumul.%: " + str(100. * sum / len(studentPreferences)))
+    print("Prio " + str(priority + 1) + ":\t" + str(numbers) + "\tCumul.%: " + str(100. * sum / len(studentPreferences)))
 
 # prepare csv output
 # each department gets two lines, one containing students, the other one the respective priority of the student
 result = []
 
 for student in invalidStudents:
-    bestDepartmentStudents['unassigned'].append(student)
+    bestDepartmentStudents['unassigned'].append([student, 99])
     # set preference "20" to unassigned students
     studentPreferences[student] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'unassigned']
 
 for department, students in bestDepartmentStudents.items():
     # sort students first by priority
-    students.sort(key = lambda student: studentPreferences[student].index(department))
+    students.sort(key = lambda studentWithPriority: studentWithPriority[1])
     resultRow1 = [department, 'Capacity: ', 'Students: ', 'Student']
     resultRow2 = [departmentLabels[department], departmentCapacities[department], len(students), 'Priority']
 
-    for student in students:
-        resultRow1.append(student)
+    for studentWithPriority in students:
+        resultRow1.append(studentWithPriority[0])
         # in output, preference starts at 1, not 0
-        resultRow2.append(studentPreferences[student].index(department) + 1)
+        resultRow2.append(studentWithPriority[1] + 1)
 
     result.append(resultRow1)
     result.append(resultRow2)
